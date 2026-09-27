@@ -27,6 +27,8 @@ export interface MeteoriteSample {
   storage: StorageLocation;
   /** 备注（可选） */
   note?: string;
+  /** 所属降落事件 id（v4 引入）；未归档的旧样本为 undefined，一块样本只归一场 */
+  eventId?: string;
   createdAt: number;
   /** v3 升级迁移新增字段 */
   updatedAt: number;

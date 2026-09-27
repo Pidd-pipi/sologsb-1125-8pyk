@@ -2,20 +2,29 @@ import { useMemo, useState } from 'react';
 import {
   Alert,
   Box,
+  Button,
   Chip,
+  FormControl,
   Grid,
+  InputLabel,
   List,
   ListItemButton,
   ListItemText,
+  MenuItem,
   Paper,
+  Select,
   Stack,
   Typography,
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import EmptyState from '../components/common/EmptyState';
 import ClassificationBadge from '../components/common/Badge';
+import EventSummaryCard from '../components/common/EventSummaryCard';
 import { useRegionStats } from '../hooks/useRegionStats';
+import { useEventSummaries } from '../hooks/useEventSummaries';
 import { useSampleStore } from '../stores/sampleStore';
+import { useUiStore } from '../stores/uiStore';
+import { NO_EVENT_FILTER } from '../db';
 import { CATEGORY_LABELS, type SampleCategory } from '../types/sample';
 import { categoryColor, formatWeight } from '../utils/format';
 import { FIND_ENVIRONMENT_LABELS } from '../types/find';
@@ -26,7 +35,10 @@ const GRID = graticuleLines(SIZE, 30);
 
 /** `/locations` 发现地分布（SVG 网格打点，无外部地图依赖） */
 export default function Locations() {
-  const { stats, totalSamples, totalWeight } = useRegionStats();
+  const eventSummaries = useEventSummaries();
+  const eventId = useUiStore((s) => s.eventId);
+  const setEventId = useUiStore((s) => s.setEventId);
+
   const finds = useSampleStore((s) => s.finds);
   const samples = useSampleStore((s) => s.samples);
   const [activeRegion, setActiveRegion] = useState<string | null>(null);
@@ -34,21 +46,49 @@ export default function Locations() {
 
   const sampleMap = useMemo(() => new Map(samples.map((s) => [s.id, s])), [samples]);
 
-  const points = useMemo(() => {
-    const list = finds.filter((f) => (activeRegion ? f.region === activeRegion : true));
-    return list.map((f) => {
-      const sample = sampleMap.get(f.sampleId);
-      const pos = projectToGrid({ longitude: f.longitude, latitude: f.latitude }, SIZE);
-      return { find: f, sample, pos };
-    });
-  }, [finds, sampleMap, activeRegion]);
+  const activeSummary = useMemo(
+    () => (eventId && eventId !== NO_EVENT_FILTER
+      ? eventSummaries.find((e) => e.event.id === eventId)
+      : undefined),
+    [eventSummaries, eventId],
+  );
+
+  /** 事件筛选下可见成员；null 表示不限事件 */
+  const memberSampleIds = useMemo(() => {
+    if (!eventId) return null;
+    if (eventId === NO_EVENT_FILTER) {
+      return new Set(samples.filter((s) => !s.eventId).map((s) => s.id));
+    }
+    return new Set((activeSummary?.members ?? []).map((s) => s.id));
+  }, [eventId, activeSummary, samples]);
+
+  const { stats, totalSamples, totalWeight } = useRegionStats(memberSampleIds);
+
+  /** 事件 + 地区双重过滤后的定位记录 */
+  const visibleFinds = useMemo(
+    () =>
+      finds.filter((f) => {
+        if (memberSampleIds && memberSampleIds.size > 0 && !memberSampleIds.has(f.sampleId))
+          return false;
+        if (activeRegion && f.region !== activeRegion) return false;
+        return true;
+      }),
+    [finds, memberSampleIds, activeRegion],
+  );
+
+  const points = useMemo(
+    () =>
+      visibleFinds.map((f) => {
+        const sample = sampleMap.get(f.sampleId);
+        const pos = projectToGrid({ longitude: f.longitude, latitude: f.latitude }, SIZE);
+        return { find: f, sample, pos };
+      }),
+    [visibleFinds, sampleMap],
+  );
 
   const activeFind = points.find((p) => p.find.id === activePoint);
 
-  const regionSampleList = useMemo(
-    () => (activeRegion ? points : []),
-    [activeRegion, points],
-  );
+  const regionSampleList = points;
 
   return (
     <Stack spacing={2.5}>
@@ -60,6 +100,40 @@ export default function Locations() {
         </Typography>
       </Box>
 
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Typography variant="subtitle2">按降落事件查看</Typography>
+          <FormControl size="small" sx={{ minWidth: 260 }}>
+            <InputLabel id="location-event-label">降落事件</InputLabel>
+            <Select
+              labelId="location-event-label"
+              label="降落事件"
+              value={eventId ?? ''}
+              onChange={(e) => {
+                setEventId(e.target.value === '' ? null : e.target.value);
+                setActiveRegion(null);
+                setActivePoint(null);
+              }}
+            >
+              <MenuItem value="">全部定位记录</MenuItem>
+              {eventSummaries.map((s) => (
+                <MenuItem key={s.event.id} value={s.event.id}>
+                  {s.event.name}（{s.memberCount} 块 · {s.sites.length} 处发现地）
+                </MenuItem>
+              ))}
+              <MenuItem value={NO_EVENT_FILTER}>未归档样本</MenuItem>
+            </Select>
+          </FormControl>
+          {eventId !== null ? (
+            <Button variant="text" size="small" onClick={() => setEventId(null)}>
+              取消事件筛选
+            </Button>
+          ) : null}
+        </Stack>
+      </Paper>
+
+      {activeSummary ? <EventSummaryCard summary={activeSummary} dense /> : null}
+
       {finds.length === 0 ? (
         <EmptyState
           title="还没有登记任何发现地坐标"
@@ -67,6 +141,10 @@ export default function Locations() {
           actionLabel="去登记样本"
           actionTo="/samples/new"
         />
+      ) : points.length === 0 ? (
+        <Alert severity="info">
+          当前筛选{eventId === NO_EVENT_FILTER ? '（未归档样本）' : ''}下没有可显示的定位记录。
+        </Alert>
       ) : (
         <Grid container spacing={2.5}>
           <Grid item xs={12} md={8}>

@@ -40,19 +40,27 @@ docker compose down
 
 | 路由 | 说明 | 消费模型 |
 | --- | --- | --- |
-| `/` | 样本总览：卡片流 + 分类/化学群/重量区间筛选与排序，缺坐标或缺切片显示角标 | MeteoriteSample |
+| `/` | 样本总览：卡片流 + 分类/化学群/重量区间/降落事件筛选与排序，缺坐标或缺切片显示角标 | MeteoriteSample、FallEvent |
 | `/samples/new` | 样本登记：编号生成、分类化学群、重量、存放位置，可补录发现地坐标并即时校验 | MeteoriteSample、FindRecord |
-| `/samples/:id` | 样本详情：基本信息 + 发现地摘要 + 切片列表 + 分析记录，可就地新增 | 四个模型 |
+| `/samples/:id` | 样本详情：基本信息 + 发现地摘要 + 降落事件归档 + 切片列表 + 分析记录，可就地新增 | 五个模型 |
 | `/sections` | 切片库：按厚度与矿物占比筛选，回跳样本，批量标注质量 | ThinSection、MeteoriteSample |
 | `/analysis` | 分析检测：录入 Fa / Fs / Ni / 铁纹石带宽，实时分类建议与阈值命中说明 | AnalysisRecord、MeteoriteSample |
-| `/locations` | 发现地分布：SVG 网格按经纬度打点、按分类着色、点选弹出样本清单 | FindRecord、MeteoriteSample |
+| `/locations` | 发现地分布：SVG 网格按经纬度打点、按分类着色，支持按降落事件收敛，点选弹出样本清单 | FindRecord、MeteoriteSample、FallEvent |
 
 ## 数据模型（`src/types/` 独立文件）
 
-- `types/sample.ts` — **MeteoriteSample**：id、样本编号、总重量 g、分类、化学群、风化等级 W0–W4、发现/坠落、存放位置
+- `types/sample.ts` — **MeteoriteSample**：id、样本编号、总重量 g、分类、化学群、风化等级 W0–W4、发现/坠落、存放位置、`eventId`（所属降落事件，未归档为空）
 - `types/find.ts` — **FindRecord**：id、关联样本、地名、国家地区、经纬度、坐标来源（GPS/文献）、发现环境、发现者
 - `types/section.ts` — **ThinSection**：id、切片编号、关联样本、厚度 μm、制样方式、矿物占比、显微照片清单
 - `types/analysis.ts` — **AnalysisRecord**：id、关联样本或切片、方法、橄榄石 Fa、辉石 Fs、Ni wt%、铁纹石带宽 mm、检测日期
+- `types/event.ts` — **FallEvent**：id、事件名称、日期、主发现地；事件卡动态汇总成员数量、总重量与各处发现地
+
+### 降落事件归档规则
+
+- 样本与事件是多对一：每块样本只归一场，归属直接记录在 `samples.eventId`
+- 在样本详情页可「新建事件并归档」或「归入已有事件」；改归时覆盖 `eventId`（先退原场再入新场），也可「退出本事件」
+- 事件卡的成员数、总重量、发现地清单均由当前样本与发现记录实时汇总；移除样本即自动清除归属并重算
+- v4 之前的旧样本没有 `eventId`，按未归档处理，样本详情照常打开
 
 ## 目录结构
 
@@ -70,25 +78,26 @@ sologsb-1125/
     ├── vite.config.ts
     ├── public/favicon.svg
     └── src/
-        ├── types/{sample,find,section,analysis}.ts
-        ├── db/index.ts                 # Dexie 封装与 v1→v3 升级迁移
+        ├── types/{sample,find,section,analysis,event}.ts
+        ├── db/index.ts                 # Dexie 封装与 v1→v4 升级迁移
         ├── stores/{sampleStore,uiStore}.ts
-        ├── components/common/{SampleCard,Badge,FieldGroup,EmptyState,CoordinatePicker,AppShell}.tsx
-        ├── hooks/{useSampleFilter,useLocalDraft,useRegionStats}.ts
+        ├── components/common/{SampleCard,Badge,FieldGroup,EmptyState,CoordinatePicker,AppShell,EventSummaryCard,EventSection}.tsx
+        ├── hooks/{useSampleFilter,useLocalDraft,useRegionStats,useEventSummaries}.ts
         ├── pages/{Overview,New,Detail,Sections,Analysis,Locations}.tsx
         ├── router/index.tsx
-        └── utils/{classify,format,geo}.ts
+        └── utils/{classify,format,geo,event}.ts
 ```
 
 ## 数据存储说明
 
-- **库名**：`gbmeteorite-db`；表：`samples`、`finds`、`sections`、`analysis`
+- **库名**：`gbmeteorite-db`；表：`samples`、`finds`、`sections`、`analysis`、`events`
 - **版本迁移**：
   - v1 建 `samples` / `finds` / `sections`
   - v2 新增 `analysis` 表并加 `sampleId` 索引
   - v3 为 `samples` 补 `updatedAt` 字段并按 id 回填旧记录
+  - v4 新增 `events` 表并为 `samples` 加 `eventId` 索引；旧样本缺省 `eventId` 即未归档，无需回填
 - **草稿**：`/samples/new` 与 `/analysis` 的表单草稿写入 localStorage（键前缀 `gbmeteorite:draft:`），切页自动恢复，提交后清理
-- 首次打开会灌入 3 份演示样本、2 条发现记录、2 张切片与 2 条检测记录，便于直接体验筛选与打点
+- 首次打开会灌入 3 份演示样本（其中 2 份归在同一场降落事件下）、1 场降落事件、2 条发现记录、2 张切片与 2 条检测记录，便于直接体验筛选与打点
 
 ## 环境变量
 

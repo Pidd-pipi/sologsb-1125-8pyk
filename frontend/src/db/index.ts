@@ -3,21 +3,28 @@ import type { MeteoriteSample } from '../types/sample';
 import type { FindRecord } from '../types/find';
 import type { ThinSection } from '../types/section';
 import type { AnalysisRecord } from '../types/analysis';
+import type { FallEvent } from '../types/event';
 
 /** 库名固定为 gbmeteorite-db */
 export const DB_NAME = 'gbmeteorite-db';
+
+/** 不归属任何降落事件时的筛选值 */
+export const NO_EVENT_FILTER = '__none__';
 
 /**
  * 版本历史（IndexedDB 升级迁移）：
  *  - v1：建 samples / finds / sections 三张表
  *  - v2：新增 analysis 表，并为 analysis 加 sampleId 索引
  *  - v3：为 samples 补 updatedAt 字段，并按 id 回填旧记录
+ *  - v4：新增 events 表，并为 samples 加 eventId 索引；
+ *        旧样本没有 eventId 字段，读取时按「未归档」处理，无需回填
  */
 export class MeteoriteDB extends Dexie {
   samples!: Table<MeteoriteSample, string>;
   finds!: Table<FindRecord, string>;
   sections!: Table<ThinSection, string>;
   analysis!: Table<AnalysisRecord, string>;
+  events!: Table<FallEvent, string>;
 
   constructor() {
     super(DB_NAME);
@@ -65,6 +72,17 @@ export class MeteoriteDB extends Dexie {
             }
           });
       });
+
+    this.version(4)
+      .stores({
+        samples:
+          'id, sampleNo, category, chemicalGroup, totalWeight, eventId, createdAt, updatedAt',
+        finds: 'id, sampleId, region, createdAt',
+        sections: 'id, sectionNo, sampleId, thickness, createdAt',
+        analysis: 'id, sampleId, sectionId, method, testedAt, createdAt',
+        events: 'id, eventDate, createdAt',
+      });
+    // v4 不需要 upgrade 回调：events 为空表，旧样本缺省的 eventId 即代表未归档
   }
 }
 
@@ -81,48 +99,65 @@ export async function seedIfEmpty(): Promise<void> {
   const count = await db.samples.count();
   if (count > 0) return;
   const now = Date.now();
-  await db.transaction('rw', db.samples, db.finds, db.sections, db.analysis, async () => {
-    await db.samples.bulkAdd([
-      {
-        id: 'sample_seed_1',
-        sampleNo: 'MET-2024-001',
-        totalWeight: 1250.4,
-        category: 'chondrite',
-        chemicalGroup: 'H',
-        weathering: 'W1',
-        fallOrFind: 'find',
-        storage: 'cabinet-a',
-        note: '撒哈拉回收，熔壳完整',
+  await db.transaction(
+    'rw',
+    db.samples,
+    db.finds,
+    db.sections,
+    db.analysis,
+    db.events,
+    async () => {
+      await db.events.add({
+        id: 'event_seed_1',
+        name: '2024 年春跨区回收批',
+        eventDate: '2024-05-18',
+        primaryLocation: 'Dar al Gani 区域',
         createdAt: now - 86400000 * 40,
         updatedAt: now - 86400000 * 40,
-      },
-      {
-        id: 'sample_seed_2',
-        sampleNo: 'MET-2024-002',
-        totalWeight: 8420,
-        category: 'iron',
-        chemicalGroup: 'IAB',
-        weathering: 'W0',
-        fallOrFind: 'find',
-        storage: 'cabinet-b',
-        note: '八面体结构清晰',
-        createdAt: now - 86400000 * 30,
-        updatedAt: now - 86400000 * 30,
-      },
-      {
-        id: 'sample_seed_3',
-        sampleNo: 'MET-2024-003',
-        totalWeight: 318.9,
-        category: 'achondrite',
-        chemicalGroup: 'ungrouped',
-        weathering: 'W2',
-        fallOrFind: 'fall',
-        storage: 'desiccator',
-        note: '目击坠落，无熔壳',
-        createdAt: now - 86400000 * 18,
-        updatedAt: now - 86400000 * 18,
-      },
-    ]);
+      });
+      await db.samples.bulkAdd([
+        {
+          id: 'sample_seed_1',
+          sampleNo: 'MET-2024-001',
+          totalWeight: 1250.4,
+          category: 'chondrite',
+          chemicalGroup: 'H',
+          weathering: 'W1',
+          fallOrFind: 'find',
+          storage: 'cabinet-a',
+          note: '撒哈拉回收，熔壳完整',
+          eventId: 'event_seed_1',
+          createdAt: now - 86400000 * 40,
+          updatedAt: now - 86400000 * 40,
+        },
+        {
+          id: 'sample_seed_2',
+          sampleNo: 'MET-2024-002',
+          totalWeight: 8420,
+          category: 'iron',
+          chemicalGroup: 'IAB',
+          weathering: 'W0',
+          fallOrFind: 'find',
+          storage: 'cabinet-b',
+          note: '八面体结构清晰',
+          eventId: 'event_seed_1',
+          createdAt: now - 86400000 * 30,
+          updatedAt: now - 86400000 * 30,
+        },
+        {
+          id: 'sample_seed_3',
+          sampleNo: 'MET-2024-003',
+          totalWeight: 318.9,
+          category: 'achondrite',
+          chemicalGroup: 'ungrouped',
+          weathering: 'W2',
+          fallOrFind: 'fall',
+          storage: 'desiccator',
+          note: '目击坠落，无熔壳',
+          createdAt: now - 86400000 * 18,
+          updatedAt: now - 86400000 * 18,
+        },
+      ]);
     await db.finds.bulkAdd([
       {
         id: 'find_seed_1',

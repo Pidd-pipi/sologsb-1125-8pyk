@@ -1,5 +1,6 @@
-import { Box, Card, CardActionArea, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { Box, Card, CardActionArea, CardContent, Chip, Stack, Tooltip, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
+import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import {
   FALL_OR_FIND_LABELS,
   WEATHERING_LABELS,
@@ -15,6 +16,8 @@ interface SampleCardProps {
   find?: FindRecord;
   sectionCount?: number;
   analysisCount?: number;
+  /** 所属降落事件名称（未归档不传） */
+  eventName?: string;
   to?: string;
 }
 
@@ -24,6 +27,7 @@ export function SampleCard({
   find,
   sectionCount = 0,
   analysisCount = 0,
+  eventName,
   to,
 }: SampleCardProps) {
   const missing: string[] = [];
@@ -82,6 +86,17 @@ export function SampleCard({
           <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap sx={{ mt: 'auto', pt: 1 }}>
             <Chip size="small" variant="outlined" label={`切片 ${sectionCount}`} />
             <Chip size="small" variant="outlined" label={`检测 ${analysisCount}`} />
+            {eventName ? (
+              <Tooltip title="降落事件归档">
+                <Chip
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  icon={<TravelExploreIcon />}
+                  label={eventName}
+                />
+              </Tooltip>
+            ) : null}
             {missing.map((m) => (
               <Chip key={m} size="small" color="warning" label={m} />
             ))}

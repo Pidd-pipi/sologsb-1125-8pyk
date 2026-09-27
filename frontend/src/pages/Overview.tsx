@@ -16,9 +16,12 @@ import AddIcon from '@mui/icons-material/Add';
 import { Link as RouterLink } from 'react-router-dom';
 import SampleCard from '../components/common/SampleCard';
 import EmptyState from '../components/common/EmptyState';
+import EventSummaryCard from '../components/common/EventSummaryCard';
 import { useSampleFilter } from '../hooks/useSampleFilter';
+import { useEventSummaries } from '../hooks/useEventSummaries';
 import { useSampleStore } from '../stores/sampleStore';
 import { useUiStore } from '../stores/uiStore';
+import { NO_EVENT_FILTER } from '../db';
 import {
   CATEGORY_LABELS,
   CHEMICAL_GROUP_LABELS,
@@ -34,10 +37,24 @@ export default function Overview() {
   const finds = useSampleStore((s) => s.finds);
   const sections = useSampleStore((s) => s.sections);
   const analysis = useSampleStore((s) => s.analysis);
+  const eventSummaries = useEventSummaries();
 
   const ui = useUiStore();
+  const activeSummary = useMemo(
+    () => (ui.eventId && ui.eventId !== NO_EVENT_FILTER
+      ? eventSummaries.find((e) => e.event.id === ui.eventId)
+      : undefined),
+    [eventSummaries, ui.eventId],
+  );
 
   const findBySample = useMemo(() => new Map(finds.map((f) => [f.sampleId, f])), [finds]);
+  const eventNameBySample = useMemo(() => {
+    const m = new Map<string, string>();
+    eventSummaries.forEach((summary) =>
+      summary.members.forEach((member) => m.set(member.id, summary.event.name)),
+    );
+    return m;
+  }, [eventSummaries]);
   const sectionCount = useMemo(() => {
     const m = new Map<string, number>();
     sections.forEach((s) => m.set(s.sampleId, (m.get(s.sampleId) ?? 0) + 1));
@@ -170,8 +187,55 @@ export default function Overview() {
             </Button>
             <Chip size="small" label={`生效条件 ${activeCount}`} variant="outlined" />
           </Stack>
+
+          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Typography variant="subtitle2" sx={{ width: 72 }}>
+              降落事件
+            </Typography>
+            <FormControl size="small" sx={{ width: 260 }}>
+              <InputLabel id="event-filter-label">按事件查看</InputLabel>
+              <Select
+                labelId="event-filter-label"
+                label="按事件查看"
+                value={ui.eventId ?? ''}
+                onChange={(e) => ui.setEventId(e.target.value === '' ? null : e.target.value)}
+              >
+                <MenuItem value="">全部样本</MenuItem>
+                {eventSummaries.map((s) => (
+                  <MenuItem key={s.event.id} value={s.event.id}>
+                    {s.event.name}（{s.memberCount} 块）
+                  </MenuItem>
+                ))}
+                <MenuItem value={NO_EVENT_FILTER}>未归档样本</MenuItem>
+              </Select>
+            </FormControl>
+            {ui.eventId !== null ? (
+              <Button variant="text" size="small" onClick={() => ui.setEventId(null)}>
+                取消事件筛选
+              </Button>
+            ) : null}
+          </Stack>
         </Stack>
       </Box>
+
+      {activeSummary ? (
+        <EventSummaryCard summary={activeSummary} dense />
+      ) : ui.eventId === NO_EVENT_FILTER ? (
+        <Box
+          sx={{
+            p: 2,
+            border: '1px dashed',
+            borderColor: 'divider',
+            borderRadius: 2.5,
+            bgcolor: 'background.paper',
+          }}
+        >
+          <Typography variant="subtitle2">仅显示未归档样本（{results.length} 块）</Typography>
+          <Typography variant="body2" color="text.secondary">
+            这些样本尚未归入任何降落事件，可在样本详情页新建事件或归入已有事件。
+          </Typography>
+        </Box>
+      ) : null}
 
       {results.length === 0 ? (
         <EmptyState
@@ -194,6 +258,7 @@ export default function Overview() {
                 find={findBySample.get(s.id)}
                 sectionCount={sectionCount.get(s.id) ?? 0}
                 analysisCount={analysisCount.get(s.id) ?? 0}
+                eventName={eventNameBySample.get(s.id)}
               />
             </Grid>
           ))}

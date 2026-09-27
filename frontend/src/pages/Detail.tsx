@@ -22,6 +22,7 @@ import SampleCard from '../components/common/SampleCard';
 import FieldGroup from '../components/common/FieldGroup';
 import ClassificationBadge from '../components/common/Badge';
 import EmptyState from '../components/common/EmptyState';
+import EventSection from '../components/common/EventSection';
 import { useSampleStore } from '../stores/sampleStore';
 import { useToastStore } from '../stores/uiStore';
 import {
@@ -59,6 +60,7 @@ export default function Detail() {
   const finds = useSampleStore((s) => s.finds);
   const sections = useSampleStore((s) => s.sections);
   const analysis = useSampleStore((s) => s.analysis);
+  const events = useSampleStore((s) => s.events);
   const addSection = useSampleStore((s) => s.addSection);
   const addAnalysis = useSampleStore((s) => s.addAnalysis);
   const updateSample = useSampleStore((s) => s.updateSample);
@@ -66,6 +68,10 @@ export default function Detail() {
 
   const sample = useMemo(() => samples.find((s) => s.id === id), [samples, id]);
   const find = useMemo(() => finds.find((f) => f.sampleId === id), [finds, id]);
+  const eventName = useMemo(
+    () => events.find((e) => e.id === sample?.eventId)?.name,
+    [events, sample?.eventId],
+  );
   const mySections = useMemo(() => sections.filter((s) => s.sampleId === id), [sections, id]);
   const myAnalysis = useMemo(() => analysis.filter((a) => a.sampleId === id), [analysis, id]);
 
@@ -148,6 +154,7 @@ export default function Detail() {
             find={find}
             sectionCount={mySections.length}
             analysisCount={myAnalysis.length}
+            eventName={eventName}
           />
         </Grid>
 
@@ -273,6 +280,13 @@ export default function Detail() {
           </Paper>
         </Grid>
       </Grid>
+
+      <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 2.5 }}>
+        <Typography variant="h6" sx={{ mb: 1.5 }}>
+          降落事件归档
+        </Typography>
+        <EventSection sample={sample} />
+      </Paper>
 
       <Grid container spacing={2.5}>
         <Grid item xs={12} md={7}>
