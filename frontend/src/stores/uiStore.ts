@@ -2,6 +2,9 @@ import { create } from 'zustand';
 
 export type SortKey = 'createdAt' | 'totalWeight' | 'sampleNo';
 
+/** 事件筛选：'' 全部；'none' 未归档；其余为事件 id */
+export type EventFilterValue = string;
+
 export interface SampleFilterState {
   categories: string[];
   groups: string[];
@@ -9,11 +12,13 @@ export interface SampleFilterState {
   maxWeight: number | null;
   keyword: string;
   sort: SortKey;
+  eventFilter: EventFilterValue;
   setCategories: (v: string[]) => void;
   setGroups: (v: string[]) => void;
   setWeightRange: (min: number | null, max: number | null) => void;
   setKeyword: (v: string) => void;
   setSort: (v: SortKey) => void;
+  setEventFilter: (v: EventFilterValue) => void;
   reset: () => void;
 }
 
@@ -24,6 +29,7 @@ const initial = {
   maxWeight: null as number | null,
   keyword: '',
   sort: 'createdAt' as SortKey,
+  eventFilter: '' as EventFilterValue,
 };
 
 /** 全站筛选条件（供 / 与 /sections 共享） */
@@ -34,6 +40,7 @@ export const useUiStore = create<SampleFilterState>((set) => ({
   setWeightRange: (min, max) => set({ minWeight: min, maxWeight: max }),
   setKeyword: (v) => set({ keyword: v }),
   setSort: (v) => set({ sort: v }),
+  setEventFilter: (v) => set({ eventFilter: v }),
   reset: () => set({ ...initial }),
 }));
 

@@ -3,11 +3,15 @@ import {
   Alert,
   Box,
   Chip,
+  FormControl,
   Grid,
+  InputLabel,
   List,
   ListItemButton,
   ListItemText,
+  MenuItem,
   Paper,
+  Select,
   Stack,
   Typography,
 } from '@mui/material';
@@ -16,6 +20,7 @@ import EmptyState from '../components/common/EmptyState';
 import ClassificationBadge from '../components/common/Badge';
 import { useRegionStats } from '../hooks/useRegionStats';
 import { useSampleStore } from '../stores/sampleStore';
+import { useUiStore } from '../stores/uiStore';
 import { CATEGORY_LABELS, type SampleCategory } from '../types/sample';
 import { categoryColor, formatWeight } from '../utils/format';
 import { FIND_ENVIRONMENT_LABELS } from '../types/find';
@@ -26,7 +31,10 @@ const GRID = graticuleLines(SIZE, 30);
 
 /** `/locations` 发现地分布（SVG 网格打点，无外部地图依赖） */
 export default function Locations() {
-  const { stats, totalSamples, totalWeight } = useRegionStats();
+  const eventFilter = useUiStore((s) => s.eventFilter);
+  const setEventFilter = useUiStore((s) => s.setEventFilter);
+  const events = useSampleStore((s) => s.events);
+  const { stats, totalSamples, totalWeight } = useRegionStats(eventFilter);
   const finds = useSampleStore((s) => s.finds);
   const samples = useSampleStore((s) => s.samples);
   const [activeRegion, setActiveRegion] = useState<string | null>(null);
@@ -35,13 +43,22 @@ export default function Locations() {
   const sampleMap = useMemo(() => new Map(samples.map((s) => [s.id, s])), [samples]);
 
   const points = useMemo(() => {
-    const list = finds.filter((f) => (activeRegion ? f.region === activeRegion : true));
+    const list = finds.filter((f) => {
+      const sample = sampleMap.get(f.sampleId);
+      if (eventFilter === 'none') {
+        if (sample?.eventId) return false;
+      } else if (eventFilter && sample?.eventId !== eventFilter) {
+        return false;
+      }
+      if (activeRegion && f.region !== activeRegion) return false;
+      return true;
+    });
     return list.map((f) => {
       const sample = sampleMap.get(f.sampleId);
       const pos = projectToGrid({ longitude: f.longitude, latitude: f.latitude }, SIZE);
       return { find: f, sample, pos };
     });
-  }, [finds, sampleMap, activeRegion]);
+  }, [finds, sampleMap, activeRegion, eventFilter]);
 
   const activeFind = points.find((p) => p.find.id === activePoint);
 
@@ -72,6 +89,27 @@ export default function Locations() {
           <Grid item xs={12} md={8}>
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Stack direction="row" spacing={1} sx={{ mb: 1.5 }} flexWrap="wrap" useFlexGap>
+                <FormControl size="small" sx={{ minWidth: 190 }}>
+                  <InputLabel id="loc-event-filter-label">降落事件</InputLabel>
+                  <Select
+                    labelId="loc-event-filter-label"
+                    label="降落事件"
+                    value={eventFilter}
+                    onChange={(e) => {
+                      setEventFilter(e.target.value);
+                      setActiveRegion(null);
+                      setActivePoint(null);
+                    }}
+                  >
+                    <MenuItem value="">全部事件</MenuItem>
+                    <MenuItem value="none">未归档</MenuItem>
+                    {events.map((ev) => (
+                      <MenuItem key={ev.id} value={ev.id}>
+                        {ev.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
                 <Chip
                   size="small"
                   label="全部地区"

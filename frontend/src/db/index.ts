@@ -3,6 +3,7 @@ import type { MeteoriteSample } from '../types/sample';
 import type { FindRecord } from '../types/find';
 import type { ThinSection } from '../types/section';
 import type { AnalysisRecord } from '../types/analysis';
+import type { FallEvent } from '../types/event';
 
 /** 库名固定为 gbmeteorite-db */
 export const DB_NAME = 'gbmeteorite-db';
@@ -12,12 +13,14 @@ export const DB_NAME = 'gbmeteorite-db';
  *  - v1：建 samples / finds / sections 三张表
  *  - v2：新增 analysis 表，并为 analysis 加 sampleId 索引
  *  - v3：为 samples 补 updatedAt 字段，并按 id 回填旧记录
+ *  - v4：新增 events 降落事件表，并为 samples 加 eventId 索引（旧样本保持未归档）
  */
 export class MeteoriteDB extends Dexie {
   samples!: Table<MeteoriteSample, string>;
   finds!: Table<FindRecord, string>;
   sections!: Table<ThinSection, string>;
   analysis!: Table<AnalysisRecord, string>;
+  events!: Table<FallEvent, string>;
 
   constructor() {
     super(DB_NAME);
@@ -65,6 +68,16 @@ export class MeteoriteDB extends Dexie {
             }
           });
       });
+
+    this.version(4)
+      .stores({
+        samples:
+          'id, sampleNo, category, chemicalGroup, totalWeight, createdAt, updatedAt, eventId',
+        finds: 'id, sampleId, region, createdAt',
+        sections: 'id, sectionNo, sampleId, thickness, createdAt',
+        analysis: 'id, sampleId, sectionId, method, testedAt, createdAt',
+        events: 'id, name, eventDate, createdAt',
+      });
   }
 }
 
@@ -81,7 +94,18 @@ export async function seedIfEmpty(): Promise<void> {
   const count = await db.samples.count();
   if (count > 0) return;
   const now = Date.now();
-  await db.transaction('rw', db.samples, db.finds, db.sections, db.analysis, async () => {
+  await db.transaction('rw', db.samples, db.finds, db.sections, db.analysis, db.events, async () => {
+    await db.events.bulkAdd([
+      {
+        id: 'event_seed_1',
+        name: 'Dar al Gani 2024 春季回收',
+        eventDate: '2024-06-02',
+        primaryLocation: 'Dar al Gani 区域',
+        note: '同一散布区多批次回收，统一建档',
+        createdAt: now - 86400000 * 40,
+        updatedAt: now - 86400000 * 40,
+      },
+    ]);
     await db.samples.bulkAdd([
       {
         id: 'sample_seed_1',
@@ -92,6 +116,7 @@ export async function seedIfEmpty(): Promise<void> {
         weathering: 'W1',
         fallOrFind: 'find',
         storage: 'cabinet-a',
+        eventId: 'event_seed_1',
         note: '撒哈拉回收，熔壳完整',
         createdAt: now - 86400000 * 40,
         updatedAt: now - 86400000 * 40,

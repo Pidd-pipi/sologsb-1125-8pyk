@@ -15,6 +15,8 @@ interface SampleCardProps {
   find?: FindRecord;
   sectionCount?: number;
   analysisCount?: number;
+  /** 所属降落事件名（未归档时不传） */
+  eventName?: string;
   to?: string;
 }
 
@@ -24,6 +26,7 @@ export function SampleCard({
   find,
   sectionCount = 0,
   analysisCount = 0,
+  eventName,
   to,
 }: SampleCardProps) {
   const missing: string[] = [];
@@ -70,6 +73,10 @@ export function SampleCard({
 
           <Typography variant="body2" color="text.secondary">
             发现地：{find ? `${find.region} · ${find.placeName}` : '未登记'}
+          </Typography>
+
+          <Typography variant="body2" color="text.secondary">
+            降落事件：{eventName ?? '未归档'}
           </Typography>
 
           {find ? (

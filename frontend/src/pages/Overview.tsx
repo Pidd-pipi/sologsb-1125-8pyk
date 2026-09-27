@@ -34,10 +34,12 @@ export default function Overview() {
   const finds = useSampleStore((s) => s.finds);
   const sections = useSampleStore((s) => s.sections);
   const analysis = useSampleStore((s) => s.analysis);
+  const events = useSampleStore((s) => s.events);
 
   const ui = useUiStore();
 
   const findBySample = useMemo(() => new Map(finds.map((f) => [f.sampleId, f])), [finds]);
+  const eventById = useMemo(() => new Map(events.map((e) => [e.id, e])), [events]);
   const sectionCount = useMemo(() => {
     const m = new Map<string, number>();
     sections.forEach((s) => m.set(s.sampleId, (m.get(s.sampleId) ?? 0) + 1));
@@ -165,6 +167,23 @@ export default function Overview() {
                 <MenuItem value="sampleNo">按样本编号</MenuItem>
               </Select>
             </FormControl>
+            <FormControl size="small" sx={{ width: 190 }}>
+              <InputLabel id="event-filter-label">降落事件</InputLabel>
+              <Select
+                labelId="event-filter-label"
+                label="降落事件"
+                value={ui.eventFilter}
+                onChange={(e) => ui.setEventFilter(e.target.value)}
+              >
+                <MenuItem value="">全部事件</MenuItem>
+                <MenuItem value="none">未归档</MenuItem>
+                {events.map((ev) => (
+                  <MenuItem key={ev.id} value={ev.id}>
+                    {ev.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <Button variant="text" onClick={ui.reset} disabled={activeCount === 0}>
               清空筛选
             </Button>
@@ -194,6 +213,7 @@ export default function Overview() {
                 find={findBySample.get(s.id)}
                 sectionCount={sectionCount.get(s.id) ?? 0}
                 analysisCount={analysisCount.get(s.id) ?? 0}
+                eventName={s.eventId ? eventById.get(s.eventId)?.name : undefined}
               />
             </Grid>
           ))}

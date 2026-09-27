@@ -4,6 +4,11 @@ import {
   Box,
   Button,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   Divider,
   FormControl,
   Grid,
@@ -17,11 +22,13 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import SampleCard from '../components/common/SampleCard';
 import FieldGroup from '../components/common/FieldGroup';
 import ClassificationBadge from '../components/common/Badge';
 import EmptyState from '../components/common/EmptyState';
+import EventArchiveCard from '../components/common/EventArchiveCard';
 import { useSampleStore } from '../stores/sampleStore';
 import { useToastStore } from '../stores/uiStore';
 import {
@@ -55,6 +62,7 @@ import { formatCoordinate } from '../utils/geo';
 /** `/samples/:id` 样本详情 */
 export default function Detail() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const samples = useSampleStore((s) => s.samples);
   const finds = useSampleStore((s) => s.finds);
   const sections = useSampleStore((s) => s.sections);
@@ -62,12 +70,15 @@ export default function Detail() {
   const addSection = useSampleStore((s) => s.addSection);
   const addAnalysis = useSampleStore((s) => s.addAnalysis);
   const updateSample = useSampleStore((s) => s.updateSample);
+  const removeSample = useSampleStore((s) => s.removeSample);
   const notify = useToastStore((s) => s.notify);
 
   const sample = useMemo(() => samples.find((s) => s.id === id), [samples, id]);
   const find = useMemo(() => finds.find((f) => f.sampleId === id), [finds, id]);
   const mySections = useMemo(() => sections.filter((s) => s.sampleId === id), [sections, id]);
   const myAnalysis = useMemo(() => analysis.filter((a) => a.sampleId === id), [analysis, id]);
+
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const [sectionDraft, setSectionDraft] = useState({
     sectionNo: '',
@@ -132,6 +143,14 @@ export default function Detail() {
     notify(`已为 ${sample.sampleNo} 写入一条检测记录`);
   };
 
+  const handleDelete = async () => {
+    const sampleNo = sample.sampleNo;
+    await removeSample(sample.id);
+    setConfirmDeleteOpen(false);
+    notify(`已移除 ${sampleNo}，并清除其降落事件归属`);
+    navigate('/');
+  };
+
   return (
     <Stack spacing={2.5}>
       <Stack direction="row" spacing={1.5} alignItems="center">
@@ -139,6 +158,17 @@ export default function Detail() {
           返回总览
         </Button>
         <Typography variant="h4">样本详情</Typography>
+        <Box sx={{ flex: 1 }} />
+        <Button
+          size="small"
+          color="error"
+          variant="outlined"
+          startIcon={<DeleteOutlineIcon />}
+          onClick={() => setConfirmDeleteOpen(true)}
+          id="delete-sample"
+        >
+          移除样本
+        </Button>
       </Stack>
 
       <Grid container spacing={2.5}>
@@ -273,6 +303,8 @@ export default function Detail() {
           </Paper>
         </Grid>
       </Grid>
+
+      <EventArchiveCard sample={sample} />
 
       <Grid container spacing={2.5}>
         <Grid item xs={12} md={7}>
@@ -546,6 +578,21 @@ export default function Detail() {
           </Paper>
         </Grid>
       </Grid>
+
+      <Dialog open={confirmDeleteOpen} onClose={() => setConfirmDeleteOpen(false)}>
+        <DialogTitle>移除样本 {sample.sampleNo}？</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            将一并删除该样本的发现记录、切片与检测记录，并清除其降落事件归属（事件本身保留）。此操作不可撤销。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDeleteOpen(false)}>取消</Button>
+          <Button color="error" variant="contained" onClick={handleDelete} id="confirm-delete-sample">
+            确认移除
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

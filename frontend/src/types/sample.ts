@@ -25,6 +25,8 @@ export interface MeteoriteSample {
   weathering: WeatheringGrade;
   fallOrFind: FallOrFind;
   storage: StorageLocation;
+  /** 所属降落事件 id（v4 新增）；每块样本至多归一场，未归档时为 undefined */
+  eventId?: string;
   /** 备注（可选） */
   note?: string;
   createdAt: number;

@@ -10,8 +10,8 @@ export interface RegionStat {
   points: { sampleId: string; longitude: number; latitude: number; category: SampleCategory }[];
 }
 
-/** 按国家地区聚合样本数与总重量，被 /locations 消费 */
-export function useRegionStats() {
+/** 按国家地区聚合样本数与总重量，被 /locations 消费；可按降落事件过滤 */
+export function useRegionStats(eventFilter?: string) {
   const finds = useSampleStore((s) => s.finds);
   const samples = useSampleStore((s) => s.samples);
 
@@ -20,6 +20,11 @@ export function useRegionStats() {
     const map = new Map<string, RegionStat>();
     for (const f of finds) {
       const sample = sampleMap.get(f.sampleId);
+      if (eventFilter === 'none') {
+        if (sample?.eventId) continue;
+      } else if (eventFilter && sample?.eventId !== eventFilter) {
+        continue;
+      }
       const region = f.region?.trim() || '未标注地区';
       const entry =
         map.get(region) ??
@@ -42,5 +47,5 @@ export function useRegionStats() {
     const totalWeight = stats.reduce((n, s) => n + s.totalWeight, 0);
     const maxCount = stats.length ? Math.max(...stats.map((s) => s.sampleCount)) : 0;
     return { stats, totalSamples, totalWeight, maxCount };
-  }, [finds, samples]);
+  }, [finds, samples, eventFilter]);
 }

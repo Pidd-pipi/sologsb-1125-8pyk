@@ -20,7 +20,7 @@ import {
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import PublicIcon from '@mui/icons-material/Public';
 import { useSampleStore } from '../../stores/sampleStore';
-import { useToastStore } from '../../stores/uiStore';
+import { useToastStore, useUiStore } from '../../stores/uiStore';
 
 const DRAWER_WIDTH = 232;
 
@@ -45,18 +45,29 @@ const NAV = [
   { to: '/sections', label: '切片库' },
   { to: '/analysis', label: '分析检测' },
   { to: '/locations', label: '发现地分布' },
+  { to: '/events', label: '降落事件' },
 ];
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const loadAll = useSampleStore((s) => s.loadAll);
   const loaded = useSampleStore((s) => s.loaded);
   const sampleCount = useSampleStore((s) => s.samples.length);
+  const events = useSampleStore((s) => s.events);
+  const eventFilter = useUiStore((s) => s.eventFilter);
+  const setEventFilter = useUiStore((s) => s.setEventFilter);
   const toast = useToastStore();
   const location = useLocation();
 
   useEffect(() => {
     if (!loaded) void loadAll();
   }, [loaded, loadAll]);
+
+  // 事件被删除后，若仍按该事件筛选则自动重置，避免总览 / 发现地页空屏
+  useEffect(() => {
+    if (eventFilter && eventFilter !== 'none' && !events.some((e) => e.id === eventFilter)) {
+      setEventFilter('');
+    }
+  }, [events, eventFilter, setEventFilter]);
 
   return (
     <ThemeProvider theme={theme}>

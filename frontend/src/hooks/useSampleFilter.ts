@@ -15,6 +15,7 @@ export function useSampleFilter(override?: Partial<{ category: string; group: st
   const maxWeight = useUiStore((s) => s.maxWeight);
   const keyword = useUiStore((s) => s.keyword);
   const sort = useUiStore((s) => s.sort);
+  const eventFilter = useUiStore((s) => s.eventFilter);
 
   const results = useMemo(() => {
     const kw = keyword.trim().toLowerCase();
@@ -25,6 +26,11 @@ export function useSampleFilter(override?: Partial<{ category: string; group: st
       if (maxWeight !== null && s.totalWeight > maxWeight) return false;
       if (override?.category && s.category !== override.category) return false;
       if (override?.group && s.chemicalGroup !== override.group) return false;
+      if (eventFilter === 'none') {
+        if (s.eventId) return false;
+      } else if (eventFilter && s.eventId !== eventFilter) {
+        return false;
+      }
       if (kw) {
         const hay = `${s.sampleNo} ${s.note ?? ''}`.toLowerCase();
         if (!hay.includes(kw)) return false;
@@ -32,7 +38,18 @@ export function useSampleFilter(override?: Partial<{ category: string; group: st
       return true;
     });
     return sortSamples(list, sort);
-  }, [samples, categories, groups, minWeight, maxWeight, keyword, sort, override?.category, override?.group]);
+  }, [
+    samples,
+    categories,
+    groups,
+    minWeight,
+    maxWeight,
+    keyword,
+    sort,
+    eventFilter,
+    override?.category,
+    override?.group,
+  ]);
 
   return {
     results,
@@ -41,7 +58,8 @@ export function useSampleFilter(override?: Partial<{ category: string; group: st
       categories.length +
       groups.length +
       (minWeight !== null || maxWeight !== null ? 1 : 0) +
-      (keyword.trim() ? 1 : 0),
+      (keyword.trim() ? 1 : 0) +
+      (eventFilter ? 1 : 0),
   };
 }
 
